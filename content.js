@@ -1,5 +1,4 @@
 (async () => {
-    // Check if API key is stored, if not, we can't operate
     let geminiApiKey = await new Promise(resolve => {
         chrome.storage.local.get(['geminiApiKey'], (result) => {
             resolve(result.geminiApiKey);
@@ -8,23 +7,75 @@
 
     if (!geminiApiKey) {
         console.warn("MCPS Extension: No Gemini API Key found. Content script won't operate fully.");
-        // You might want to show a subtle message to the user that API key is missing
         return;
     }
 
     const OBSERVER_CONFIG = { childList: true, subtree: true };
-    const processedElements = new Set(); // To avoid processing the same element multiple times
+    const processedElements = new Set();
+    let suggestionPopover = null;
 
-    // KHAI BÁO suggestionPopover Ở ĐÂY ĐỂ CÓ PHẠM VI TOÀN CỤC TRONG IIFE
-    let suggestionPopover = null; // Di chuyển khai báo này ra ngoài injectCorrectButton
+    // Helper function to normalize element access (for textarea/input and contenteditable div)
+    function normalizeInputElement(element) {
+        if (element.tagName === 'TEXTAREA' || (element.tagName === 'INPUT' && element.type === 'text')) {
+            return {
+                originalElement: element,
+                getValue: () => element.value,
+                setValue: (val) => { element.value = val; },
+                type: 'input',
+                parentNode: element.parentNode,
+                getBoundingClientRect: () => element.getBoundingClientRect(),
+                dispatchEvent: (event) => element.dispatchEvent(event)
+            };
+        } else if (element.contentEditable === 'true') {
+            // Logic cụ thể cho contenteditable (như Jira và một số editor của Azure DevOps)
+            return {
+                originalElement: element,
+                getValue: () => {
+                    let text = element.textContent || '';
+                    // Loại bỏ placeholder cụ thể của Jira, có thể không ảnh hưởng đến Azure
+                    text = text.replace(/Type @ to mention and notify someone\./g, '').trim();
+                    return text;
+                },
+                setValue: (val) => {
+                    const targetDiv = element;
+                    targetDiv.focus();
 
-    function injectCorrectButton(textarea) {
-        if (processedElements.has(textarea)) {
-            return; // Already processed
+                    const selection = window.getSelection();
+                    const range = document.createRange();
+
+                    // Xóa nội dung hiện có: chọn tất cả và xóa
+                    range.selectNodeContents(targetDiv);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    document.execCommand('delete', false, null);
+
+                    // Chèn văn bản mới
+                    document.execCommand('insertText', false, val);
+
+                    // Đặt con trỏ về cuối văn bản
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                },
+                type: 'contenteditable',
+                parentNode: element.parentNode,
+                getBoundingClientRect: () => element.getBoundingClientRect(),
+                dispatchEvent: (event) => element.dispatchEvent(event)
+            };
         }
-        processedElements.add(textarea);
+        return null;
+    }
 
-        // Tạo nút
+    /**
+     * Injects the correction button and sets up its behavior.
+     * @param {object} normalizedInput - A normalized input object with originalElement, getValue, setValue etc.
+     */
+    function injectCorrectButton(normalizedInput) {
+        if (processedElements.has(normalizedInput.originalElement)) {
+            return;
+        }
+        processedElements.add(normalizedInput.originalElement);
+
         const correctButton = document.createElement('button');
         correctButton.className = 'mcps-correct-button';
         correctButton.innerHTML = `
@@ -35,63 +86,72 @@
         `;
         correctButton.title = 'Correct Text';
 
-        // Tìm phần tử cha để chèn nút vào
-        const parentOfInput = textarea.parentNode;
-        if (window.getComputedStyle(parentOfInput).position === 'static') {
-            parentOfInput.style.position = 'relative';
+        // Tìm kiếm vị trí để chèn nút.
+        // Cố gắng chèn nút ĐÚNG SAU phần tử originalElement.
+        const parentOfInput = normalizedInput.originalElement.parentNode;
+        if (!parentOfInput) {
+            console.warn("MCPS Extension: Could not find parent node for element. Button not injected.", normalizedInput.originalElement);
+            return;
         }
+        
+        // Chèn nút. Cố gắng chèn sau phần tử gốc.
+        // Đối với Jira, có thể cần một container đặc biệt như .ak-editor-content-area
+        // Tuy nhiên, việc chèn nút sau phần tử originalElement thường hoạt động tốt nhất.
+        normalizedInput.originalElement.insertAdjacentElement('afterend', correctButton);
 
-        // Chèn nút vào phần tử cha của textarea
-        parentOfInput.insertBefore(correctButton, textarea.nextSibling);
-
-        // Hàm để cập nhật vị trí nút (ẩn/hiện khi cuộn)
+        // Đảm bảo nút hiển thị và không bị che khuất
+        const buttonContainer = correctButton.parentNode; // parentNode của nút chính là nơi nó được chèn vào
+        if (window.getComputedStyle(buttonContainer).position === 'static') {
+            buttonContainer.style.position = 'relative';
+        }
+        
         function updateButtonVisibility() {
             correctButton.style.display = 'flex';
         }
 
-        // Cập nhật vị trí lần đầu
         updateButtonVisibility();
 
-        // Lắng nghe sự kiện cuộn và thay đổi kích thước để cập nhật vị trí
-        window.addEventListener('scroll', updateButtonVisibility);
-        window.addEventListener('resize', updateButtonVisibility);
-
-        // Sử dụng ResizeObserver để theo dõi sự thay đổi kích thước của textarea
         if (typeof ResizeObserver !== 'undefined') {
             const resizeObserver = new ResizeObserver(entries => {
                 for (let entry of entries) {
-                    if (entry.target === textarea) {
+                    if (entry.target === normalizedInput.originalElement) {
                         updateButtonVisibility();
                     }
                 }
             });
-            resizeObserver.observe(textarea);
+            resizeObserver.observe(normalizedInput.originalElement);
         }
 
-        correctButton.addEventListener('click', async () => {
-            const originalText = textarea.value;
+        correctButton.addEventListener('click', async (event) => {
+            event.stopPropagation(); // Ngăn sự kiện click lan ra ngoài, tránh đóng popover ngay lập tức
+
+            const originalText = normalizedInput.getValue();
+
+            console.log("Original Text captured:", originalText);
+            console.log("Original Text length:", originalText.length);
+            console.log("Trimmed Original Text length:", originalText.trim().length);
 
             if (!originalText.trim()) {
                 alert("Please enter some text to correct.");
                 return;
             }
 
-            // Remove existing popover if any
             if (suggestionPopover) {
                 suggestionPopover.remove();
                 suggestionPopover = null;
             }
 
-            // Show loading state
-            suggestionPopover = createPopover(textarea, 'Loading...');
+            suggestionPopover = createPopover(normalizedInput.originalElement, 'Loading...');
             const loadingSpinner = document.createElement('span');
             loadingSpinner.className = 'mcps-loading-spinner';
-            suggestionPopover.querySelector('p').prepend(loadingSpinner);
-            suggestionPopover.querySelector('p').style.display = 'flex';
-            suggestionPopover.querySelector('p').style.alignItems = 'center';
+            const popoverParagraph = suggestionPopover.querySelector('p');
+            if (popoverParagraph) {
+                popoverParagraph.prepend(loadingSpinner);
+                popoverParagraph.style.display = 'flex';
+                popoverParagraph.style.alignItems = 'center';
+            }
 
             try {
-                // Send message to background script for API call
                 const response = await chrome.runtime.sendMessage({
                     action: 'correctText',
                     text: originalText,
@@ -101,15 +161,15 @@
                 if (response.success) {
                     const correctedText = response.correctedText;
                     if (correctedText) {
-                        renderPopover(textarea, originalText, correctedText);
+                        renderPopover(normalizedInput, originalText, correctedText);
                     } else {
-                        renderPopover(textarea, originalText, "No corrections suggested.");
+                        renderPopover(normalizedInput, originalText, "No corrections suggested.");
                     }
                 } else {
-                    renderPopover(textarea, originalText, `Error: ${response.error || 'Unknown error'}`);
+                    renderPopover(normalizedInput, originalText, `Error: ${response.error || 'Unknown error'}`);
                 }
             } catch (error) {
-                renderPopover(textarea, originalText, `An unexpected error occurred: ${error.message}`);
+                renderPopover(normalizedInput, originalText, `An unexpected error occurred: ${error.message}`);
                 console.error('MCPS Content Script Error:', error);
             }
         });
@@ -120,23 +180,21 @@
         popover.className = 'mcps-suggestion-popover';
         popover.innerHTML = `<p>${content}</p>`;
 
-        // Position the popover relative to the target element
         const rect = targetElement.getBoundingClientRect();
-        popover.style.top = `${window.scrollY + rect.bottom + 5}px`; // 5px below the element
+        popover.style.top = `${window.scrollY + rect.bottom + 5}px`;
         popover.style.left = `${window.scrollX + rect.left}px`;
-        popover.style.minWidth = `${rect.width * 0.8}px`; // Make it a bit narrower than the input
+        popover.style.minWidth = `${rect.width * 0.8}px`;
 
         document.body.appendChild(popover);
         return popover;
     }
 
-    function renderPopover(textarea, originalText, correctedText) {
-        // Lỗi xảy ra ở đây vì suggestionPopover không được định nghĩa trong phạm vi này
+    function renderPopover(normalizedInput, originalText, correctedText) {
         if (suggestionPopover) {
-            suggestionPopover.remove(); // Remove old one
+            suggestionPopover.remove();
         }
 
-        suggestionPopover = createPopover(textarea, ''); // Create fresh popover
+        suggestionPopover = createPopover(normalizedInput.originalElement, '');
 
         const originalP = document.createElement('p');
         originalP.className = 'original-text';
@@ -154,16 +212,11 @@
         const applyButton = document.createElement('button');
         applyButton.textContent = 'Apply';
         applyButton.addEventListener('click', () => {
-            textarea.value = correctedText;
-            if (textarea.contentEditable === 'true') {
-                   textarea.innerHTML = correctedText;
-            } else {
-                   textarea.value = correctedText;
-            }
+            normalizedInput.setValue(correctedText);
 
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
-            textarea.dispatchEvent(new Event('change', { bubbles: true }));
-            textarea.dispatchEvent(new Event('blur', { bubbles: true })); // Simulate blur to save changes
+            normalizedInput.dispatchEvent(new Event('input', { bubbles: true }));
+            normalizedInput.dispatchEvent(new Event('change', { bubbles: true }));
+            normalizedInput.dispatchEvent(new Event('blur', { bubbles: true }));
 
             if (suggestionPopover) suggestionPopover.remove();
             suggestionPopover = null;
@@ -182,52 +235,46 @@
         suggestionPopover.appendChild(actionsDiv);
     }
 
-
-    // Function to find and process textareas/inputs on the page
+    /**
+     * Finds and processes elements based on the current URL.
+     */
     function findAndProcessElements() {
-        // Look for standard textareas
-        document.querySelectorAll('textarea:not([data-mcps-processed="true"])').forEach(textarea => {
-            textarea.setAttribute('data-mcps-processed', 'true'); // Mark as processed
-            injectCorrectButton(textarea);
-        });
+        const url = window.location.href;
 
-        // Look for contenteditable divs (common in rich text editors)
-        document.querySelectorAll('div[contenteditable="true"]:not([data-mcps-processed="true"])').forEach(div => {
-            if (div.offsetParent && div.offsetParent.classList.contains('editor-area') ||
-                div.closest('.akEditor'))
-                {
-                    div.setAttribute('data-mcps-processed', 'true');
-                    const mockTextarea = {
-                        value: div.innerText,
-                        set value(val) { div.innerText = val; },
-                        contentEditable: 'true',
-                        parentNode: div.parentNode,
-                        getBoundingClientRect: () => div.getBoundingClientRect(),
-                        dispatchEvent: (event) => div.dispatchEvent(event)
-                    };
-                    injectCorrectButton(mockTextarea);
-            }
-        });
+        if (url.includes('dev.azure.com') || url.includes('visualstudio.com')) {
+            console.log("MCPS: Processing Azure DevOps elements.");
+            // Azure DevOps: Work item description/comment (textarea)
+            document.querySelectorAll(
+                'textarea[aria-label="Description"]:not([data-mcps-processed="true"]), ' +
+                'textarea[aria-label="Discussion"]:not([data-mcps-processed="true"])'
+            ).forEach(element => {
+                element.setAttribute('data-mcps-processed', 'true');
+                const normalized = normalizeInputElement(element);
+                if (normalized) injectCorrectButton(normalized);
+            });
 
-        // JIRA (Cloud): Comment/Description editor
-        document.querySelectorAll('.ak-editor-content-area div[contenteditable="true"]:not([data-mcps-processed="true"])').forEach(div => {
-            div.setAttribute('data-mcps-processed', 'true');
-            const mockTextarea = {
-                value: div.innerText,
-                set value(val) { div.innerText = val; },
-                contentEditable: 'true',
-                parentNode: div.parentNode,
-                getBoundingClientRect: () => div.getBoundingClientRect(),
-                dispatchEvent: (event) => div.dispatchEvent(event)
-            };
-            injectCorrectButton(mockTextarea);
-        });
-
-        // Azure DevOps: Work item description/comment
-        document.querySelectorAll('textarea[aria-label="Description"]:not([data-mcps-processed="true"]), textarea[aria-label="Discussion"]:not([data-mcps-processed="true"]), .ms-TextField-field[data-editor-id]:not([data-mcps-processed="true"])').forEach(input => {
-            input.setAttribute('data-mcps-processed', 'true');
-            injectCorrectButton(input);
-        });
+            // Azure DevOps: Rich text editors (contenteditable divs)
+            document.querySelectorAll(
+                '.ms-TextField-field[data-editor-id][contenteditable="true"]:not([data-mcps-processed="true"]), ' +
+                'div.vc-richtext-editor div[contenteditable="true"]:not([data-mcps-processed="true"])'
+            ).forEach(element => {
+                element.setAttribute('data-mcps-processed', 'true');
+                const normalized = normalizeInputElement(element);
+                if (normalized) injectCorrectButton(normalized);
+            });
+        } else if (url.includes('atlassian.net')) {
+            console.log("MCPS: Processing Jira elements.");
+            // Jira Cloud: Selector for the contenteditable div within the main editor.
+            // Jira Cloud: Also include standard textareas for other fields.
+            document.querySelectorAll(
+                '#ak-editor-textarea[contenteditable="true"]:not([data-mcps-processed="true"]), ' +
+                'textarea:not([data-mcps-processed="true"])'
+            ).forEach(element => {
+                element.setAttribute('data-mcps-processed', 'true');
+                const normalized = normalizeInputElement(element);
+                if (normalized) injectCorrectButton(normalized);
+            });
+        }
     }
 
     // Run the initial scan
@@ -241,9 +288,26 @@
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === 'apiKeyUpdated') {
             geminiApiKey = request.apiKey;
-            console.log("MCPS Content Script: API Key updated from popup.");
-            findAndProcessElements(); // Re-scan in case we couldn't operate before
+            console.log("MCPS Content Script: API Key updated from popup. Re-scanning elements.");
+            processedElements.clear(); // Clear processed elements to re-scan all
+            findAndProcessElements();
         }
     });
 
-})(); // IIFE to keep variables private
+    // Lắng nghe sự kiện click trên toàn bộ document để đóng popover
+    document.addEventListener('click', (event) => {
+        if (suggestionPopover) {
+            // Kiểm tra xem click có nằm bên trong popover hay nút "Correct Text" không
+            const correctButton = document.querySelector('.mcps-correct-button'); // Lấy lại tham chiếu nút
+            const isClickInsidePopover = suggestionPopover.contains(event.target);
+            const isClickInsideButton = correctButton && correctButton.contains(event.target);
+
+            if (!isClickInsidePopover && !isClickInsideButton) {
+                // Nếu click không nằm trong popover hoặc nút, đóng popover
+                suggestionPopover.remove();
+                suggestionPopover = null;
+            }
+        }
+    });
+
+})();

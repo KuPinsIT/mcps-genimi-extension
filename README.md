@@ -3,8 +3,6 @@ Correct english text on input text, using gemini api. Install via chrome and edg
 Here's the `README.md` file in English for your project:
 
 -----
-![image](https://github.com/user-attachments/assets/36208776-e4c5-4070-a01b-35e7d3d78f46)
-
 
 ## Introduction
 

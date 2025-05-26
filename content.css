@@ -1,0 +1,109 @@
+/* Styling for the injected button (pencil icon) */
+.mcps-correct-button {
+    all: unset; /* Reset tất cả các kiểu dáng mặc định */
+    box-sizing: border-box; /* Giữ box model */
+
+    position: absolute; /* Quan trọng: Định vị tuyệt đối so với phần tử cha có position: relative */
+    bottom: 5px; /* Khoảng cách từ đáy của input */
+    right: 5px; /* Khoảng cách từ phải của input */
+
+    width: 24px; /* Kích thước nút/icon */
+    height: 24px;
+    border-radius: 50%; /* Nút tròn */
+    background-color: rgba(0, 123, 255, 0.9); /* Màu xanh dương */
+    color: white; /* Màu của icon SVG */
+    cursor: pointer;
+    display: flex; /* Quan trọng: Dùng flexbox để căn giữa icon */
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); /* Đổ bóng nhẹ */
+    z-index: 9999; /* Đảm bảo nút nằm trên input */
+
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.mcps-correct-button:hover {
+    background-color: #0056b3; /* Màu hover đậm hơn */
+    transform: scale(1.1); /* Hiệu ứng phóng to nhẹ */
+}
+
+.mcps-correct-button:active {
+    transform: scale(0.9); /* Hiệu ứng khi nhấn */
+}
+
+/* Style cho icon SVG bên trong nút */
+.mcps-correct-button svg {
+    display: block; /* Đảm bảo SVG không có khoảng trắng thừa */
+    width: 16px; /* Kích thước của icon bên trong nút */
+    height: 16px;
+}
+
+/* Styling for the suggestion popover */
+.mcps-suggestion-popover {
+  position: absolute;
+  background-color: #f9f9f9;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  padding: 10px;
+  z-index: 10000;
+  max-width: 400px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+.mcps-suggestion-popover p {
+  margin: 0 0 8px 0;
+}
+
+.mcps-suggestion-popover .original-text {
+  color: #555;
+  font-style: italic;
+  margin-bottom: 5px;
+}
+
+.mcps-suggestion-popover .corrected-text {
+  font-weight: bold;
+  color: #28a745; /* Green for corrected text */
+  margin-bottom: 10px;
+}
+
+.mcps-suggestion-popover .mcps-actions button {
+  background-color: #4CAF50; /* Apply button */
+  color: white;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-right: 5px;
+  font-size: 13px;
+}
+
+.mcps-suggestion-popover .mcps-actions button:hover {
+  background-color: #45a049;
+}
+
+.mcps-suggestion-popover .mcps-actions button.mcps-cancel {
+  background-color: #f44336; /* Cancel button */
+}
+
+.mcps-suggestion-popover .mcps-actions button.mcps-cancel:hover {
+  background-color: #da190b;
+}
+
+.mcps-suggestion-popover .mcps-loading-spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

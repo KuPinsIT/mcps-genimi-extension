@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Your MCPS Extension Name",
+  "version": "1.0",
+  "description": "A description of your extension.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.dev.azure.com/*",
+    "*://*.visualstudio.com/*",
+    "*://*.atlassian.net/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.dev.azure.com/*",
+        "*://*.visualstudio.com/*",
+        "*://*.atlassian.net/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

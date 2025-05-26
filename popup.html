@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MCPS - English Corrector</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>My MCPS (Gemini)</h1>
+    <textarea id="inputText" placeholder="Paste your English text here..." rows="8"></textarea>
+    <button id="correctButton">Correct Text</button>
+    <div id="resultBox">
+      <h2>Corrected Text:</h2>
+      <p id="correctedText"></p>
+      <button id="copyButton" style="display: none;">Copy Corrected Text</button>
+      <span id="copyStatus" style="display: none; margin-left: 10px; color: green;"></span>
+    </div>
+    <div class="api-key-section">
+      <h3>API Key Setup</h3>
+      <input type="password" id="apiKeyInput" placeholder="Enter your Google Gemini API Key">
+      <button id="saveApiKeyButton">Save API Key</button>
+      <p id="apiKeyStatus"></p>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

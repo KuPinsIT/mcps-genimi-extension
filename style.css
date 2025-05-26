@@ -1,0 +1,113 @@
+body {
+  font-family: Arial, sans-serif;
+  width: 400px;
+  padding: 15px;
+  background-color: #f4f7f6;
+  color: #333;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+h1 {
+  color: #2c3e50;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 14px;
+  box-sizing: border-box; /* Include padding in width */
+}
+
+button {
+  background-color: #4285F4; /* Google Blue */
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #357ae8; /* Darker Google Blue */
+}
+
+#resultBox {
+  margin-top: 15px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background-color: #e6f3ff; /* Light blue background for result */
+}
+
+#resultBox h2 {
+  font-size: 18px;
+  color: #1a73e8; /* Google Blue for heading */
+  margin-top: 0;
+}
+
+#correctedText {
+  white-space: pre-wrap; /* Preserve line breaks */
+  color: #000;
+}
+
+.api-key-section {
+  margin-top: 20px;
+  border-top: 1px solid #eee;
+  padding-top: 15px;
+}
+
+.api-key-section h3 {
+  font-size: 16px;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+#apiKeyInput {
+  width: calc(100% - 10px);
+  padding: 8px;
+  margin-right: 5px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+#saveApiKeyButton {
+  background-color: #34A853; /* Google Green */
+  font-size: 14px;
+  padding: 8px 12px;
+}
+
+#saveApiKeyButton:hover {
+  background-color: #2e8b4e; /* Darker Google Green */
+}
+
+#apiKeyStatus {
+  margin-top: 5px;
+  font-size: 12px;
+  color: green;
+}
+
+#copyButton {
+  background-color: #007bff; /* A nice blue for copy */
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px; /* Space above the button */
+}
+
+#copyButton:hover {
+  background-color: #0056b3;
+}

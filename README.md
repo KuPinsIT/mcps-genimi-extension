@@ -100,11 +100,3 @@ If you wish to contribute or modify the code:
 
 1.  Edit the `.js` and `.css` files within the project directory.
 2.  After each change, reload the extension in `chrome://extensions` or `edge://extensions` to apply the updates.
-
-## License
-
-This project is licensed under the MIT License. See the `LICENSE` file for more details.
-
------
-
-Remember to replace `YOUR_REPO_URL` with the actual URL of your GitHub repository and "Your MCPS Extension Name" with the actual name of your extension. Also, ensure you have a `LICENSE` file in your repository if you're using the MIT license.
